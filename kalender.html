@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mein Trainingskalender</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            padding-top: 20px;
+        }
+        .calendar-container {
+            width: 90%;
+            max-width: 1200px;
+            background: #fff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            border-bottom: 2px solid #eee;
+        }
+        .calendar-header h2 {
+            margin: 0;
+            font-size: 1.5em;
+        }
+        .calendar-header button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+        .calendar-header button:hover {
+            background-color: #0056b3;
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+        }
+        .day-header {
+            text-align: center;
+            font-weight: bold;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+        }
+        .day {
+            min-height: 120px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            position: relative;
+        }
+        .day.current-month {
+            background-color: #fff;
+        }
+        .day.current-day {
+            border: 2px solid #007bff;
+        }
+        .day-number {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 1.2em;
+            color: #495057;
+        }
+        .event {
+            background-color: #007bff;
+            color: white;
+            padding: 5px;
+            margin-top: 5px;
+            border-radius: 3px;
+            font-size: 0.85em;
+            white-space: normal;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .event-minutes {
+            font-weight: bold;
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+        .week-summary {
+            grid-column: 1 / 8;
+            text-align: right;
+            padding: 10px;
+            background-color: #e9ecef;
+            font-weight: bold;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="calendar-container">
+        <div class="calendar-header">
+            <button id="prevMonth"> &lt; </button>
+            <h2 id="monthYear"></h2>
+            <button id="nextMonth"> &gt; </button>
+        </div>
+        <div class="calendar-grid">
+            <div class="day-header">So</div>
+            <div class="day-header">Mo</div>
+            <div class="day-header">Di</div>
+            <div class="day-header">Mi</div>
+            <div class="day-header">Do</div>
+            <div class="day-header">Fr</div>
+            <div class="day-header">Sa</div>
+        </div>
+    </div>
+    <script>
+        const monthYearEl = document.getElementById('monthYear');
+        const prevMonthBtn = document.getElementById('prevMonth');
+        const nextMonthBtn = document.getElementById('nextMonth');
+        const calendarGrid = document.querySelector('.calendar-grid');
+
+        let currentDate = new Date();
+        let currentYear = currentDate.getFullYear();
+        let currentMonth = currentDate.getMonth();
+        let calendarEvents = [];
+
+        async function fetchEvents() {
+            try {
+                const response = await fetch('kalender_events.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP-Fehler! Status: ${response.status}`);
+                }
+                calendarEvents = await response.json();
+                console.log('Events erfolgreich geladen:', calendarEvents);
+            } catch (error) {
+                console.error('Fehler beim Laden der Events:', error);
+            }
+        }
+
+        function renderCalendar() {
+            const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+            const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
+            const firstDayOfWeek = firstDayOfMonth.getDay();
+
+            monthYearEl.textContent = firstDayOfMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+            
+            calendarGrid.querySelectorAll('.day, .week-summary').forEach(el => el.remove());
+
+            let totalWeekMinutes = 0;
+            let weekDayCounter = 0;
+
+            // Tage des vorherigen Monats anzeigen
+            const prevMonthLastDay = new Date(currentYear, currentMonth, 0).getDate();
+            for (let i = firstDayOfWeek; i > 0; i--) {
+                const dayEl = document.createElement('div');
+                dayEl.classList.add('day');
+                dayEl.classList.add('other-month');
+                dayEl.innerHTML = `<span class="day-number">${prevMonthLastDay - i + 1}</span>`;
+                calendarGrid.appendChild(dayEl);
+                weekDayCounter++;
+            }
+
+            // Tage des aktuellen Monats anzeigen
+            for (let i = 1; i <= lastDayOfMonth.getDate(); i++) {
+                const dayEl = document.createElement('div');
+                dayEl.classList.add('day');
+                dayEl.classList.add('current-month');
+                dayEl.innerHTML = `<span class="day-number">${i}</span>`;
+                
+                // Aktuelles Datum hervorheben
+                if (currentYear === currentDate.getFullYear() && currentMonth === currentDate.getMonth() && i === currentDate.getDate()) {
+                    dayEl.classList.add('current-day');
+                }
+
+                // Events hinzufügen
+                const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+                const dayEvents = calendarEvents.filter(event => event.start === dateString);
+
+                let dayMinutes = 0;
+                dayEvents.forEach(event => {
+                    const eventEl = document.createElement('div');
+                    eventEl.classList.add('event');
+                    eventEl.title = event.title;
+
+                    const titleSpan = document.createElement('span');
+                    titleSpan.textContent = event.title;
+                    eventEl.appendChild(titleSpan);
+
+                    if (event.minutes) {
+                        const minutesSpan = document.createElement('span');
+                        minutesSpan.classList.add('event-minutes');
+                        minutesSpan.textContent = `${event.minutes}`;
+                        eventEl.appendChild(minutesSpan);
+                        dayMinutes += event.minutes;
+                    }
+                    
+                    dayEl.appendChild(eventEl);
+                });
+
+                // Wochenminuten berechnen
+                totalWeekMinutes += dayMinutes;
+                
+                calendarGrid.appendChild(dayEl);
+                weekDayCounter++;
+
+                // Wenn Samstag (6) oder Monatsende, Wochensumme anzeigen
+                if (weekDayCounter % 7 === 0 || i === lastDayOfMonth.getDate()) {
+                    const weekSummaryEl = document.createElement('div');
+                    weekSummaryEl.classList.add('week-summary');
+                    weekSummaryEl.textContent = `Wochenminuten: ${totalWeekMinutes}`;
+                    calendarGrid.appendChild(weekSummaryEl);
+                    totalWeekMinutes = 0;
+                }
+            }
+        }
+
+        async function init() {
+            await fetchEvents();
+            renderCalendar();
+        }
+
+        prevMonthBtn.addEventListener('click', () => {
+            currentMonth--;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            renderCalendar();
+        });
+
+        nextMonthBtn.addEventListener('click', () => {
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            renderCalendar();
+        });
+
+        init();
+    </script>
+</body>
+</html>
